@@ -17,7 +17,6 @@ class DeterminizeProblem(Problem):
         # ---------- Beolvasás ----------
         with open(args.input, 'r') as f:
             lines = [line.strip() for line in f if line.strip() != '']
-
         states = lines[0].split()
         alphabet = lines[1].split()
         start_state = lines[2].strip()
