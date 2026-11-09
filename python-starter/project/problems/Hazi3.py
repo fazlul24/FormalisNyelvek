@@ -159,3 +159,5 @@ class MinimizeProblem(Problem):
             f.write(" ".join(out_accept) + "\n")
             for src, sym, dst in out_transitions:
                 f.write(f"{src} {sym} {dst}\n")
+
+###veg
