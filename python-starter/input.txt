@@ -1,16 +1,7 @@
-q0 q1 q2 q3 q4 q5
-0 1
-q0
-q2
-q0 0 q1
-q0 1 q4
-q1 0 q4
-q1 1 q2
-q2 0 q0
-q2 1 q2
-q3 0 q5
-q3 1 q4
-q4 0 q4
-q4 1 q3
-q5 0 q4
-q5 1 q2
+10-15 10:18:51.254   601   601 E InputManager-JNI: at java.util.HashMap.putMapEntries(HashMap.java:500)
+10-15 10:18:51.300   221   230 D ExoPlayer: Loading source
+10-15 10:18:52.100   601   610 W PackageManager: Package not found
+10-15 10:18:51.400   221   221 E AndroidRuntime: java.lang.NullPointerException
+10-15 10:19:51.900   450   450 I lowmemorykiller: Killing process
+10-15 10:20:00.000   601   601 E Foo: at com.x.Bar.run(Bar.java:12)
+10-16 11:00:00.000   333   333 I ActivityManager: Thread started
