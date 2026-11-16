@@ -29,7 +29,7 @@ TASK1_PATTERNS = [re.compile(p) for p in (
     # 7. PackageManager warningok
     PREFIX + r'W PackageManager *:',
     # 8. ExoPlayer debug sorok
-    PREFIX + r'D ExoPlayer[^:]*:',
+    PREFIX + r'D\s+.*ExoPlayer',
     # 9. E vagy W sorok, amelyek .java: pozíciót tartalmaznak
     PREFIX + r'[EW] .*\.java:',
     # 10. "Thread" szó a message részben (a tag az első kettőspontig tart)
