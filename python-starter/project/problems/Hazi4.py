@@ -1,112 +1,109 @@
-from project.problem import Problem
 import re
+from collections import Counter
+
+from project.problem import Problem
+
+# Egy logsor eleje: dátum, idő, pid, tid
+PREFIX = r'^[0-9-]+ [0-9:.]+ +[0-9]+ +[0-9]+ '
+
+# A feladatban megadott kifejezés (2-5. feladathoz)
+# 1: teljes, 2: időbélyeg, 3: pid, 4: tid, 5: szint, 6: tag, 7: üzenet
+LOG_RE = re.compile(
+    r'(([0-9-]+ [0-9:.]+) +([0-9]+) +([0-9]+) ([IDVEFAW]) (.+?):(?: (.+))?)'
+)
+
+# 1. feladat: minden alpont egy reguláris kifejezés
+TASK1_PATTERNS = [re.compile(p) for p in (
+    # 1. 10. hónap 15-én létrejött sorok
+    r'^10-15 ',
+    # 2. 10-15 10:18:51-kor létrejött sorok
+    r'^10-15 10:18:51\.',
+    # 3. 51 másodperckor létrejött sorok (bármilyen perc/óra)
+    r'^[0-9-]+ [0-9]{2}:[0-9]{2}:51\.',
+    # 4. lowmemorykiller tag
+    PREFIX + r'[IDVEFAW] lowmemorykiller *:',
+    # 5. 10:18:51-kor keletkezett, 221-es pid
+    r'^[0-9-]+ 10:18:51\.[0-9]+ +221 +[0-9]+ ',
+    # 6. hibák (E)
+    PREFIX + r'E ',
+    # 7. PackageManager warningok
+    PREFIX + r'W PackageManager *:',
+    # 8. ExoPlayer debug sorok
+    PREFIX + r'D ExoPlayer[^:]*:',
+    # 9. E vagy W sorok, amelyek .java: pozíciót tartalmaznak
+    PREFIX + r'[EW] .*\.java:',
+    # 10. "Thread" szó a message részben (a tag az első kettőspontig tart)
+    PREFIX + r'[IDVEFAW] [^:]+: .*Thread',
+)]
+
+# 2. feladat: java állomány neve a stack trace-ből
+JAVA_FILE_RE = re.compile(r'([\w$]+\.java):[0-9]+')
+
+# 5. feladat: főszál hiba (pid == tid) visszahivatkozással
+MAIN_THREAD_ERROR_RE = re.compile(r'^[0-9-]+ [0-9:.]+ +([0-9]+) +\1 E ')
 
 
 class RegexProblem(Problem):
 
-    # Logcat sorok általános mintája (a feladatban megadott segítség alapján)
-    # 1: dátum+idő, 2: PID, 3: TID, 4: szint, 5: tag, 6: message
-    LOG_RE = re.compile(
-        r'([0-9-]+ [0-9:.]+) +([0-9]+) +([0-9]+) +([IDVEFAW]) +(.+?):(.*)'
-    )
-
     def initialize_parser(self, parser):
-        parser.add_argument(
-            '--rgx',
-            type=int,
-            help='regex task number (1-5)'
-        )
+        parser.add_argument('--rgx', type=int, choices=range(1, 6),
+                            help='regex feladat sorszáma (1-5)')
 
     def is_chosen_problem(self, args):
-        return getattr(args, 'rgx', None) is not None
+        return args.rgx is not None
 
     def run(self, args):
+        solvers = {
+            1: self.task1,
+            2: self.task2,
+            3: self.task3,
+            4: self.task4,
+            5: self.task5,
+        }
+
         with open(args.input, 'r', encoding='utf-8', errors='replace') as f:
-            content = f.read()
+            lines = f.readlines()
 
-        task = args.rgx
-        if task == 1:
-            results = self._task1(content)
-        elif task == 2:
-            results = self._task2(content)
-        elif task == 3:
-            results = self._task3(content)
-        elif task == 4:
-            results = self._task4(content)
-        elif task == 5:
-            results = self._task5(content)
-        else:
-            raise ValueError(f"Unknown regex task: {task}")
+        results = solvers[args.rgx](lines)
 
-        with open(args.output, 'w') as f:
-            for line in results:
-                f.write(str(line) + "\n")
+        with open(args.output, 'w', encoding='utf-8') as f:
+            for result in results:
+                f.write(f'{result}\n')
 
-    def _task1(self, content):
-        patterns = [
-            # a) 10. hónap 15-én kelt sorok
-            r'^10-15 +[0-9:.]+ +[0-9]+ +[0-9]+ +[IDVEFAW] +.+?:',
-            # b) 10-15 10:18:51-kor kelt sorok
-            r'^10-15 +10:18:51[0-9.]* +[0-9]+ +[0-9]+ +[IDVEFAW] +.+?:',
-            # c) 51. másodpercben kelt sorok (bármely perc)
-            r'^[0-9-]+ +[0-9]{2}:[0-9]{2}:51[0-9.]* +[0-9]+ +[0-9]+ +[IDVEFAW] +.+?:',
-            # d) lowmemorykiller taget tartalmazó sorok
-            r'^[0-9-]+ +[0-9:.]+ +[0-9]+ +[0-9]+ +[IDVEFAW] +lowmemorykiller:',
-            # e) 10:18:51-kor kelt, 221-es PID-ű sorok
-            r'^[0-9-]+ +10:18:51[0-9.]* +221 +[0-9]+ +[IDVEFAW] +.+?:',
-            # f) E (error) sorok
-            r'^[0-9-]+ +[0-9:.]+ +[0-9]+ +[0-9]+ +E +.+?:',
-            # g) PackageManager által küldött W (warning) sorok
-            r'^[0-9-]+ +[0-9:.]+ +[0-9]+ +[0-9]+ +W +PackageManager:',
-            # h) ExoPlayer-es D (debug) sorok
-            r'^[0-9-]+ +[0-9:.]+ +[0-9]+ +[0-9]+ +D +ExoPlayer[^:]*:',
-            # i) E vagy W sorok, amelyek message-ében .java: pozíció van
-            r'^[0-9-]+ +[0-9:.]+ +[0-9]+ +[0-9]+ +[EW] +[^:]+:[^\n]*\.java:',
-            # j) Thread szó a message-ben (nem a tagben)
-            r'^[0-9-]+ +[0-9:.]+ +[0-9]+ +[0-9]+ +[IDVEFAW] +[^:]+:[^\n]*Thread',
+    # ------------------------------------------------------------------
+    @staticmethod
+    def parse(lines):
+        """Visszaadja az összes sor illesztését a megadott kifejezésre."""
+        for line in lines:
+            match = LOG_RE.match(line)
+            if match:
+                yield match
+
+    def task1(self, lines):
+        return [
+            sum(1 for line in lines if pattern.search(line))
+            for pattern in TASK1_PATTERNS
         ]
-        return [len(re.findall(p, content, re.MULTILINE)) for p in patterns]
 
-    def _task2(self, content):
-        results = []
-        for m in self.LOG_RE.finditer(content):
-            if m.group(4) != 'E':
-                continue
-            message = m.group(6) or ''
-            for fm in re.finditer(r'[\w$]+\.java', message):
-                results.append(fm.group(0))
-        return results
+    def task2(self, lines):
+        files = []
+        for m in self.parse(lines):
+            if m.group(5) == 'E':
+                files.extend(JAVA_FILE_RE.findall(m.group(0)))
+        return files
 
-    def _task3(self, content):
-        results = []
-        seen = set()
-        for m in self.LOG_RE.finditer(content):
-            pid = m.group(2)
-            if pid not in seen:
-                seen.add(pid)
-                results.append(pid)
-        return results
+    def task3(self, lines):
+        # a dict megőrzi a beszúrási sorrendet, így az első előfordulás szerint rendez
+        return list(dict.fromkeys(m.group(3) for m in self.parse(lines)))
 
-    def _task4(self, content):
-        counts = {}
-        order = []
-        for m in self.LOG_RE.finditer(content):
-            if m.group(4) == 'E':
-                pid = m.group(2)
-                if pid not in counts:
-                    counts[pid] = 0
-                    order.append(pid)
-                counts[pid] += 1
-        if not counts:
+    def task4(self, lines):
+        errors = Counter(m.group(3) for m in self.parse(lines)
+                         if m.group(5) == 'E')
+        if not errors:
             return []
-        max_count = max(counts.values())
-        for pid in order:
-            if counts[pid] == max_count:
-                return [f"PID={pid} ({max_count} errors)"]
+        # döntetlennél az először megjelenő pid nyer
+        pid, count = errors.most_common(1)[0]
+        return [f'PID={pid} ({count} errors)']
 
-    def _task5(self, content):
-        count = 0
-        for m in self.LOG_RE.finditer(content):
-            if m.group(4) == 'E' and m.group(2) == m.group(3):
-                count += 1
-        return [count]
+    def task5(self, lines):
+        return [sum(1 for line in lines if MAIN_THREAD_ERROR_RE.match(line))]
